@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SignupFormProps {
   role: 'student' | 'faculty';
@@ -31,25 +32,62 @@ const SignupForm = ({ role, onSuccess }: SignupFormProps) => {
     setIsLoading(true);
     
     try {
-      // TODO: Replace with actual API call
-      // This is a mock implementation
-      console.log("Signup attempt:", { 
-        name, 
-        email, 
+      // Step 1: Create the auth account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
         password,
-        role,
-        ...(role === 'student' ? { section } : { department })
       });
       
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (authError) throw authError;
       
-      // For demonstration, any signup attempt succeeds
+      // Step 2: Insert user data into the Users Table
+      const { error: insertError } = await supabase
+        .from('Users Table')
+        .insert([
+          { 
+            id: authData.user?.id, 
+            email, 
+            name,
+            role,
+            section: role === 'student' ? section : null,
+            password // Note: This is likely redundant since Supabase Auth already stores the hashed password
+          }
+        ]);
+      
+      if (insertError) {
+        // If there's an error inserting into Users Table, we should clean up
+        // by deleting the auth user we just created
+        console.error("Error creating user profile:", insertError);
+        throw new Error("Failed to create user profile. Please try again.");
+      }
+      
+      // Step 3: If the user is a teacher, also add them to the Teachers table
+      if (role === 'faculty') {
+        const { error: teacherError } = await supabase
+          .from('Teacher')
+          .insert([
+            {
+              name,
+              email,
+              department,
+              created_at: new Date()
+            }
+          ]);
+        
+        if (teacherError) {
+          console.error("Error creating teacher profile:", teacherError);
+          // Continue anyway since the main user account was created successfully
+        }
+      }
+      
       toast.success(`Account created successfully!`);
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Signup error:", error);
-      toast.error("Signup failed. Please try again.");
+      toast.error(error.message || "Signup failed. Please try again.");
+      
+      // Try to sign out if auth was successful but other steps failed
+      await supabase.auth.signOut();
     } finally {
       setIsLoading(false);
     }

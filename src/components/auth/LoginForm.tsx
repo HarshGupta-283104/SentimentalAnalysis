@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 interface LoginFormProps {
   role: 'student' | 'faculty';
@@ -14,25 +16,45 @@ const LoginForm = ({ role, onSuccess }: LoginFormProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
     try {
-      // TODO: Replace with actual API call
-      // This is a mock implementation
-      console.log("Login attempt:", { email, password, role });
+      // First, try to authenticate with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (error) throw error;
       
-      // For demonstration, any login attempt succeeds
+      // Now check if the user has the correct role in our Users table
+      const { data: userData, error: userError } = await supabase
+        .from('Users Table')
+        .select('role')
+        .eq('email', email)
+        .single();
+      
+      if (userError) {
+        // Handle case where user exists in auth but not in our table
+        await supabase.auth.signOut();
+        throw new Error("User account not properly set up. Please contact support.");
+      }
+      
+      if (userData.role !== role) {
+        // Role mismatch
+        await supabase.auth.signOut();
+        throw new Error(`This account is not registered as a ${role}. Please use the correct login option.`);
+      }
+      
       toast.success(`Welcome back!`);
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error);
-      toast.error("Login failed. Please check your credentials.");
+      toast.error(error.message || "Login failed. Please check your credentials.");
     } finally {
       setIsLoading(false);
     }
