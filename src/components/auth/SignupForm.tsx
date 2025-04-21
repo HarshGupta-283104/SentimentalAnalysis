@@ -67,11 +67,15 @@ const SignupForm = ({ role, onSuccess }: SignupFormProps) => {
         throw new Error("Failed to create user account");
       }
 
-      // Step 2: Insert user data into the Users Table
+      // Generate a numeric ID for the Users Table since it expects a bigint
+      // We'll use the current timestamp + a random number to ensure uniqueness
+      const numericId = Date.now() + Math.floor(Math.random() * 1000);
+      
+      // Step 2: Insert user data into the Users Table with our numeric ID
       const { error: insertError } = await supabase
         .from('Users Table')
         .insert({
-          id: authData.user.id, // Use the string ID directly without parsing
+          id: numericId, // Use a generated numeric ID instead of the UUID
           email, 
           name,
           role,
