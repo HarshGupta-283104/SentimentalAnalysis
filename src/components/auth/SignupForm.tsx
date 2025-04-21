@@ -32,6 +32,21 @@ const SignupForm = ({ role, onSuccess }: SignupFormProps) => {
     setIsLoading(true);
     
     try {
+      // First check if the email already exists in Users Table
+      const { data: existingUser, error: checkError } = await supabase
+        .from('Users Table')
+        .select('email')
+        .eq('email', email)
+        .maybeSingle();
+      
+      if (checkError) {
+        console.error("Error checking existing user:", checkError);
+      }
+      
+      if (existingUser) {
+        throw new Error("An account with this email already exists. Please log in instead.");
+      }
+      
       // Step 1: Create the auth account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -66,7 +81,14 @@ const SignupForm = ({ role, onSuccess }: SignupFormProps) => {
       
       if (insertError) {
         console.error("Error creating user profile:", insertError);
-        throw new Error("Failed to create user profile. Please try again.");
+        // If there's an error inserting the profile, we should sign out and clean up
+        await supabase.auth.signOut();
+        
+        if (insertError.code === "23505") {
+          throw new Error("An account with this email already exists. Please log in instead.");
+        } else {
+          throw new Error("Failed to create user profile. Please try again.");
+        }
       }
       
       // Step 3: If the user is a teacher, also add them to the Teachers table
