@@ -71,7 +71,7 @@ const SignupForm = ({ role, onSuccess }: SignupFormProps) => {
       const { error: insertError } = await supabase
         .from('Users Table')
         .insert({
-          id: parseInt(authData.user.id), // Convert string ID to number
+          id: authData.user.id, // Use the string ID directly without parsing
           email, 
           name,
           role,
