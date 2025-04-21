@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,12 +36,17 @@ const LoginForm = ({ role, onSuccess }: LoginFormProps) => {
         .from('Users Table')
         .select('role')
         .eq('email', email)
-        .single();
+        .maybeSingle();
       
       if (userError) {
         // Handle case where user exists in auth but not in our table
         await supabase.auth.signOut();
         throw new Error("User account not properly set up. Please contact support.");
+      }
+      
+      if (!userData) {
+        await supabase.auth.signOut();
+        throw new Error("User profile not found. Please sign up first.");
       }
       
       if (userData.role !== role) {
@@ -59,6 +64,19 @@ const LoginForm = ({ role, onSuccess }: LoginFormProps) => {
       setIsLoading(false);
     }
   };
+  
+  // Set up auth listener to check for existing session
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (session) {
+          console.log("Auth state changed:", event, session);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
   
   return (
     <form onSubmit={handleSubmit} className="space-y-4">

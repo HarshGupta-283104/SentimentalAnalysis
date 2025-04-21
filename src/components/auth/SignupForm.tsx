@@ -36,6 +36,14 @@ const SignupForm = ({ role, onSuccess }: SignupFormProps) => {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            name,
+            role,
+            section: role === 'student' ? section : null,
+            department: role === 'faculty' ? department : null
+          }
+        }
       });
       
       if (authError) throw authError;
@@ -48,17 +56,15 @@ const SignupForm = ({ role, onSuccess }: SignupFormProps) => {
       const { error: insertError } = await supabase
         .from('Users Table')
         .insert({
-          id: Number(authData.user.id), // Convert string ID to number
+          id: parseInt(authData.user.id), // Convert string ID to number
           email, 
           name,
           role,
-          section: role === 'student' ? section : null,
+          section: role === 'student' ? section : '',
           password // Note: This is likely redundant since Supabase Auth already stores the hashed password
         });
       
       if (insertError) {
-        // If there's an error inserting into Users Table, we should clean up
-        // by deleting the auth user we just created
         console.error("Error creating user profile:", insertError);
         throw new Error("Failed to create user profile. Please try again.");
       }
@@ -71,7 +77,7 @@ const SignupForm = ({ role, onSuccess }: SignupFormProps) => {
             name,
             email,
             department,
-            created_at: new Date().toISOString() // Convert Date to ISO string
+            created_at: new Date().toISOString()
           });
         
         if (teacherError) {
